@@ -3,6 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { 
   Table, 
   TableBody, 
@@ -19,6 +22,27 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Plus, 
   Search, 
@@ -30,15 +54,34 @@ import {
   Download,
   ToggleLeft,
   ToggleRight,
-  FolderOpen
+  FolderOpen,
+  Save,
+  X
 } from "lucide-react";
 import { mockCategories } from "@/data/mockData";
 import { Category } from "@/types/admin";
+
+interface CategoryFormData {
+  name: string;
+  slug: string;
+  description: string;
+  status: 'active' | 'inactive';
+}
 
 export default function Categories() {
   const [categories, setCategories] = useState<Category[]>(mockCategories);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [formData, setFormData] = useState<CategoryFormData>({
+    name: "",
+    slug: "",
+    description: "",
+    status: "active"
+  });
+  const { toast } = useToast();
 
   const filteredCategories = categories.filter(category => {
     const matchesSearch = category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -47,10 +90,125 @@ export default function Categories() {
     return matchesSearch && matchesStatus;
   });
 
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
+  };
+
+  const handleNameChange = (name: string) => {
+    setFormData(prev => ({
+      ...prev,
+      name,
+      slug: generateSlug(name)
+    }));
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      slug: "",
+      description: "",
+      status: "active"
+    });
+  };
+
+  const handleAddCategory = () => {
+    if (!formData.name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Category name is required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const newCategory: Category = {
+      id: Date.now().toString(),
+      name: formData.name.trim(),
+      slug: formData.slug.trim(),
+      description: formData.description.trim(),
+      status: formData.status,
+      appCount: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: "admin@company.com"
+    };
+
+    setCategories(prev => [newCategory, ...prev]);
+    resetForm();
+    setIsAddDialogOpen(false);
+    
+    toast({
+      title: "Success",
+      description: "Category created successfully"
+    });
+  };
+
+  const handleEditCategory = () => {
+    if (!formData.name.trim() || !editingCategory) {
+      toast({
+        title: "Validation Error",
+        description: "Category name is required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setCategories(prev => prev.map(category => 
+      category.id === editingCategory.id 
+        ? {
+            ...category,
+            name: formData.name.trim(),
+            slug: formData.slug.trim(),
+            description: formData.description.trim(),
+            status: formData.status,
+            updatedAt: new Date().toISOString()
+          }
+        : category
+    ));
+
+    setEditingCategory(null);
+    resetForm();
+    setIsEditDialogOpen(false);
+    
+    toast({
+      title: "Success",
+      description: "Category updated successfully"
+    });
+  };
+
+  const handleDeleteCategory = (category: Category) => {
+    setCategories(prev => prev.filter(c => c.id !== category.id));
+    
+    toast({
+      title: "Success",
+      description: `Category "${category.name}" deleted successfully`
+    });
+  };
+
+  const openEditDialog = (category: Category) => {
+    setEditingCategory(category);
+    setFormData({
+      name: category.name,
+      slug: category.slug,
+      description: category.description || "",
+      status: category.status
+    });
+    setIsEditDialogOpen(true);
+  };
+
   const toggleCategoryStatus = (id: string) => {
     setCategories(prev => prev.map(category => 
       category.id === id 
-        ? { ...category, status: category.status === 'active' ? 'inactive' : 'active' }
+        ? { 
+            ...category, 
+            status: category.status === 'active' ? 'inactive' : 'active',
+            updatedAt: new Date().toISOString()
+          }
         : category
     ));
   };
@@ -63,10 +221,75 @@ export default function Categories() {
           <h1 className="text-3xl font-bold text-foreground">Categories</h1>
           <p className="text-muted-foreground">Manage app categories and their organization</p>
         </div>
-        <Button>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Category
-        </Button>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={() => resetForm()}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Category
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Add New Category</DialogTitle>
+              <DialogDescription>
+                Create a new category for organizing apps. Fill in the details below.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Category Name *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  placeholder="Enter category name"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="slug">Slug</Label>
+                <Input
+                  id="slug"
+                  value={formData.slug}
+                  onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
+                  placeholder="category-slug"
+                />
+                <p className="text-xs text-muted-foreground">
+                  URL-friendly version of the name. Auto-generated from name.
+                </p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Enter category description"
+                  rows={3}
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="status"
+                  checked={formData.status === 'active'}
+                  onCheckedChange={(checked) => 
+                    setFormData(prev => ({ ...prev, status: checked ? 'active' : 'inactive' }))
+                  }
+                />
+                <Label htmlFor="status">Active</Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                <X className="w-4 h-4 mr-2" />
+                Cancel
+              </Button>
+              <Button onClick={handleAddCategory}>
+                <Save className="w-4 h-4 mr-2" />
+                Create Category
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Stats */}
@@ -236,15 +459,40 @@ export default function Categories() {
                             <Eye className="mr-2 h-4 w-4" />
                             View Apps
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEditDialog(category)}>
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive">
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem 
+                                className="text-destructive"
+                                onSelect={(e) => e.preventDefault()}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Category</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete the category "{category.name}"? 
+                                  This action cannot be undone and will remove all associated apps from this category.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteCategory(category)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete Category
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -266,6 +514,71 @@ export default function Categories() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Category Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Category</DialogTitle>
+            <DialogDescription>
+              Update the category details below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-name">Category Name *</Label>
+              <Input
+                id="edit-name"
+                value={formData.name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="Enter category name"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-slug">Slug</Label>
+              <Input
+                id="edit-slug"
+                value={formData.slug}
+                onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
+                placeholder="category-slug"
+              />
+              <p className="text-xs text-muted-foreground">
+                URL-friendly version of the name. Auto-generated from name.
+              </p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Enter category description"
+                rows={3}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="edit-status"
+                checked={formData.status === 'active'}
+                onCheckedChange={(checked) => 
+                  setFormData(prev => ({ ...prev, status: checked ? 'active' : 'inactive' }))
+                }
+              />
+              <Label htmlFor="edit-status">Active</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              <X className="w-4 h-4 mr-2" />
+              Cancel
+            </Button>
+            <Button onClick={handleEditCategory}>
+              <Save className="w-4 h-4 mr-2" />
+              Update Category
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
