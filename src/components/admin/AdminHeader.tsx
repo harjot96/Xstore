@@ -11,8 +11,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function AdminHeader() {
+  const { user, logout } = useAuth();
+
   return (
     <header className="h-16 border-b border-admin-header-border bg-admin-header px-6 flex items-center justify-between">
       <div className="flex items-center gap-4">
@@ -39,12 +42,12 @@ export function AdminHeader() {
             <Button variant="ghost" className="flex items-center gap-2 px-3">
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="bg-primary text-primary-foreground">
-                  JS
+                  {user?.name.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
                 </AvatarFallback>
               </Avatar>
               <div className="text-left">
-                <p className="text-sm font-medium">John Smith</p>
-                <p className="text-xs text-muted-foreground">SuperAdmin</p>
+                <p className="text-sm font-medium">{user?.name || 'User'}</p>
+                <p className="text-xs text-muted-foreground">{user?.role || 'User'}</p>
               </div>
             </Button>
           </DropdownMenuTrigger>
@@ -60,7 +63,7 @@ export function AdminHeader() {
               Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">
+            <DropdownMenuItem className="text-destructive" onClick={logout}>
               <LogOut className="mr-2 h-4 w-4" />
               Logout
             </DropdownMenuItem>
